@@ -1,0 +1,84 @@
+- hosts: mysql_master
+  become: yes
+  vars:
+    mysql_root_password: "your_root_password"
+    mysql_replication_password: "your_replication_password"
+  tasks:
+    - name: Install MySQL
+      apt:
+        name: mysql-server
+        state: present
+    - name: Configure MySQL Master
+      block:
+        - name: Backup my.cnf
+          command: cp /etc/mysql/mysql.conf.d/mysqld.cnf /etc/mysql/mysql.conf.d/mysqld.cnf.backup
+
+        - name: Set MySQL server-id
+          lineinfile:
+            path: /etc/mysql/mysql.conf.d/mysqld.cnf
+            line: "server-id=1"
+            create: yes
+
+        - name: Enable binary logging
+          lineinfile:
+            path: /etc/mysql/mysql.conf.d/mysqld.cnf
+            line: "log_bin=mysql-bin"
+            create: yes
+
+        - name: Restart MySQL
+          service:
+            name: mysql
+            state: restarted
+
+        - name: Create replication user
+          mysql_user:
+            login_user: root
+            login_password: "{{ mysql_root_password }}"
+            name: repl
+            host: '%'
+            password: "{{ mysql_replication_password }}"
+            priv: "*.*:REPLICATION SLAVE"
+            state: present
+
+
+- hosts: mysql_replicas
+  become: yes
+  vars:
+    mysql_root_password: "your_root_password"
+    mysql_replication_password: "your_replication_password"
+    mysql_master_host: "mysql1"
+  tasks:
+    - name: Install MySQL
+      apt:
+        name: mysql-server
+        state: present
+    # - name: Configure MySQL Replica
+      # block:
+      #   - name: Backup my.cnf
+      #     command: cp /etc/mysql/my.cnf /etc/mysql/my.cnf.backup
+
+      #   - name: Set MySQL server-id
+      #     lineinfile:
+      #       path: /etc/mysql/my.cnf
+      #       line: "server-id={{ inventory_hostname[-1] }}"
+      #       create: yes
+
+      #   - name: Set MySQL master info
+      #     lineinfile:
+      #       path: /etc/mysql/my.cnf
+      #       line: "relay-log=mysql-relay-bin"
+      #       create: yes
+
+      #   - name: Restart MySQL
+      #     service:
+      #       name: mysql
+      #       state: restarted
+
+      #   - name: Configure replica to follow master
+      #     mysql_replication:
+      #       mode: changemaster
+      #       master_host: "{{ mysql_master_host }}"
+      #       master_user: repl
+      #       master_password: "{{ mysql_replication_password }}"
+      #       login_user: root
+      #       login_password: "{{ mysql_root_password }}"
